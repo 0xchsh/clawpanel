@@ -18,7 +18,7 @@ function BudgetRing({ spent, budget }: { spent: number; budget: number }) {
         cy="48"
         r={r}
         fill="none"
-        stroke="rgba(0,0,0,0.06)"
+        stroke="var(--card-border)"
         strokeWidth="6"
       />
       <circle
@@ -162,7 +162,7 @@ export function CostHero({ cost }: { cost: CostSnapshot }) {
       </div>
 
       {budgetPct !== null && budgetPct > 80 && (
-        <div className="mt-4 flex items-center gap-2 rounded-lg bg-accent-yellow/8 px-4 py-2.5 text-[13px] text-accent-yellow" style={{ boxShadow: "0 0 0 1px rgba(245, 158, 11, 0.15)" }}>
+        <div className="mt-4 flex items-center gap-2 rounded-lg bg-accent-yellow/8 border border-accent-yellow/15 px-4 py-2.5 text-[13px] text-accent-yellow">
           <AlertTriangle size={14} />
           Daily budget {budgetPct}% used
         </div>

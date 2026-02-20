@@ -51,21 +51,19 @@ export function AgentHeader({
         aria-label={hasMultiple ? "Switch agent" : `Agent: ${activeAgent.name}`}
         aria-expanded={hasMultiple ? open : undefined}
         onClick={() => hasMultiple && setOpen(!open)}
-        className={`relative flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-card text-3xl transition-shadow duration-150 ${
+        className={`relative flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-card border border-card-border text-3xl transition-shadow duration-150 ${
           hasMultiple
             ? "cursor-pointer hover:shadow-md active:scale-[0.97]"
             : "cursor-default"
         }`}
-        style={{ boxShadow: "0 0 0 1px rgba(0, 0, 0, 0.06)" }}
       >
         {activeAgent.emoji}
         {hasMultiple && (
           <ChevronDown
             size={12}
-            className={`absolute -bottom-0.5 -right-0.5 rounded-full bg-card p-0.5 text-muted transition-transform duration-200`}
+            className={`absolute -bottom-0.5 -right-0.5 rounded-full bg-card border border-card-border p-0.5 text-muted transition-transform duration-200`}
             style={{
               transitionTimingFunction: "var(--ease-out)",
-              boxShadow: "0 0 0 1px rgba(0, 0, 0, 0.08)",
               transform: open ? "rotate(180deg)" : undefined,
             }}
           />
@@ -102,10 +100,10 @@ export function AgentHeader({
       {/* Agent selector dropdown */}
       {open && hasMultiple && (
         <div
-          className="absolute left-6 top-full mt-1 min-w-52 rounded-xl bg-card py-1.5"
+          className="absolute left-6 top-full mt-1 min-w-52 rounded-xl bg-card py-1.5 border border-card-border"
           style={{
             zIndex: "var(--z-dropdown)",
-            boxShadow: "0 0 0 1px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08)",
+            boxShadow: "0 8px 24px var(--shadow-medium)",
           }}
         >
           {agents

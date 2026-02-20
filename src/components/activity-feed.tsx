@@ -52,8 +52,7 @@ function ActivityItem({ event }: { event: ActivityEvent }) {
 
   return (
     <div
-      className="flex items-start gap-3 rounded-xl px-4 py-3 transition-colors duration-150 hover:bg-card-hover/50"
-      style={{ boxShadow: "0 0 0 1px rgba(0, 0, 0, 0.04)" }}
+      className="flex items-start gap-3 rounded-xl px-4 py-3 transition-colors duration-150 hover:bg-card-hover/50 border border-transparent hover:border-card-border"
     >
       <div
         className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-background-deep ${config.color}`}

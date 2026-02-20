@@ -26,6 +26,10 @@ import type {
   CostSnapshot,
   ChannelHealth,
   AgentState,
+  Task,
+  TaskStatus,
+  Memory,
+  AgentDesk,
 } from "@/types";
 
 export interface GatewayContextValue {
@@ -103,6 +107,25 @@ export interface GatewayContextValue {
   // Enhanced health
   channelHealth: ChannelHealth[];
   agentState: AgentState;
+
+  // Heatmap
+  heatmap: {
+    cells: { day: string; hour: number; messages: number; tokens: number }[];
+    maxMessages: number;
+    days: string[];
+    currentStreak: number;
+    longestStreak: number;
+  };
+
+  // Tasks
+  tasks: Task[];
+  moveTask: (taskId: string, newStatus: TaskStatus) => void;
+
+  // Memories
+  memories: Memory[];
+
+  // Agent Desks (Office)
+  agentDesks: AgentDesk[];
 }
 
 export const GatewayContext = createContext<GatewayContextValue | null>(null);

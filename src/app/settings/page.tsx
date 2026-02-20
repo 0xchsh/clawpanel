@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
-import { Link2, DollarSign, Bell, RefreshCw } from "lucide-react";
+import { Link2, DollarSign, Bell, RefreshCw, Sun, Moon, Monitor } from "lucide-react";
+import { useTheme } from "@/components/theme-provider";
 
 interface SettingsState {
   gatewayUrl: string;
@@ -32,10 +33,17 @@ const defaultSettings: SettingsState = {
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<SettingsState>(defaultSettings);
+  const { theme, setTheme } = useTheme();
 
   const update = (key: keyof SettingsState, value: string | boolean) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
+
+  const themeOptions: { value: "light" | "dark" | "system"; label: string; icon: typeof Sun }[] = [
+    { value: "light", label: "Light", icon: Sun },
+    { value: "dark", label: "Dark", icon: Moon },
+    { value: "system", label: "System", icon: Monitor },
+  ];
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -46,6 +54,35 @@ export default function SettingsPage() {
 
       <div className="flex-1 overflow-y-auto px-6 py-8">
         <div className="mx-auto max-w-2xl space-y-8">
+          {/* Theme */}
+          <SettingsSection icon={Sun} title="Appearance">
+            <div className="space-y-2">
+              <p className="text-[13px] font-medium text-foreground">Theme</p>
+              <div className="flex gap-2">
+                {themeOptions.map((opt) => {
+                  const Icon = opt.icon;
+                  const active = theme === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setTheme(opt.value)}
+                      className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-[13px] font-medium transition-colors duration-150 cursor-pointer ${
+                        active
+                          ? "bg-foreground text-card"
+                          : "text-muted hover:text-foreground"
+                      }`}
+                      style={!active ? { boxShadow: "0 0 0 1px var(--card-border)" } : undefined}
+                    >
+                      <Icon size={14} />
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </SettingsSection>
+
           {/* Gateway Connection */}
           <SettingsSection icon={Link2} title="Gateway Connection">
             <Field label="Gateway URL" description="WebSocket URL for the OpenClaw gateway">

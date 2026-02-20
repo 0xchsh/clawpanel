@@ -1,12 +1,29 @@
 {
   "name": "clawpanel",
   "version": "0.1.0",
-  "private": true,
+  "description": "A better dashboard for OpenClaw — monitor your agent's cost, health, sessions, and activity.",
+  "keywords": ["openclaw", "dashboard", "monitor", "ai", "agent", "llm", "cost-tracking"],
+  "author": "ClawPanel",
+  "license": "MIT",
+  "bin": {
+    "clawpanel": "./bin/clawpanel.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "public/",
+    ".next/",
+    "next.config.ts",
+    "tsconfig.json",
+    "postcss.config.mjs",
+    "package.json"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "agentation": "^2.2.1",
@@ -24,5 +41,8 @@
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

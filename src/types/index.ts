@@ -391,6 +391,72 @@ export interface LogEntry {
 
 // --- Settings types ---
 
+// --- Task Board types ---
+
+export type TaskStatus = "backlog" | "in_progress" | "review" | "done";
+export type TaskPriority = "low" | "medium" | "high" | "urgent";
+export type TaskAssigneeType = "human" | "agent";
+
+export interface TaskAssignee {
+  id: string;
+  name: string;
+  type: TaskAssigneeType;
+  emoji: string;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  assignee: TaskAssignee;
+  createdAt: Date;
+  updatedAt: Date;
+  dueDate?: Date;
+  tags: string[];
+}
+
+// --- Memory types ---
+
+export type MemorySource = "conversation" | "research" | "observation" | "reflection" | "user_note";
+
+export interface Memory {
+  id: string;
+  title: string;
+  content: string;
+  summary: string;
+  source: MemorySource;
+  agentId: string;
+  agentName: string;
+  agentEmoji: string;
+  tags: string[];
+  createdAt: Date;
+  updatedAt: Date;
+  tokenCount: number;
+}
+
+// --- Office types ---
+
+export type AgentWorkStatus = "idle" | "working" | "thinking" | "away";
+
+export interface AgentDesk {
+  id: string;
+  agentId: string;
+  agentName: string;
+  agentEmoji: string;
+  status: AgentWorkStatus;
+  currentTask?: string;
+  model: string;
+  position: { row: number; col: number };
+  deskStyle: string;
+  itemsOnDesk: string[];
+  sessionCount: number;
+  uptimeMinutes: number;
+}
+
+// --- Settings types ---
+
 export type BindMode = "localhost" | "tailscale";
 export type ThinkingLevel = "low" | "medium" | "high";
 export type AuthMode = "none" | "token";

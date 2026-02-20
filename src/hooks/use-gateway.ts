@@ -26,6 +26,10 @@ import type {
   CostSnapshot,
   ChannelHealth,
   AgentState,
+  Task,
+  TaskStatus,
+  Memory,
+  AgentDesk,
 } from "@/types";
 import {
   mockAgent,
@@ -51,6 +55,10 @@ import {
   mockCostSnapshot,
   mockChannelHealth,
   mockAgentState,
+  mockHeatmap,
+  mockTasks,
+  mockMemories,
+  mockAgentDesks,
 } from "@/lib/mock-data";
 import type { GatewayContextValue } from "@/contexts/gateway-context";
 
@@ -92,6 +100,12 @@ export function useGateway(): GatewayContextValue {
   const [costSnapshot] = useState<CostSnapshot>(mockCostSnapshot);
   const [channelHealth] = useState<ChannelHealth[]>(mockChannelHealth);
   const [agentState] = useState<AgentState>(mockAgentState);
+  const [heatmap] = useState(mockHeatmap);
+
+  // --- Tasks / Memory / Office state ---
+  const [tasks, setTasks] = useState<Task[]>(mockTasks);
+  const [memories] = useState<Memory[]>(mockMemories);
+  const [agentDesks] = useState<AgentDesk[]>(mockAgentDesks);
 
   // --- Existing actions ---
   const sendMessage = useCallback((content: string) => {
@@ -246,6 +260,15 @@ export function useGateway(): GatewayContextValue {
     );
   }, []);
 
+  // --- Task actions ---
+  const moveTask = useCallback((taskId: string, newStatus: TaskStatus) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId ? { ...t, status: newStatus, updatedAt: new Date() } : t
+      )
+    );
+  }, []);
+
   // --- Config actions ---
   const updateConfigField = useCallback(
     (sectionKey: string, fieldKey: string, value: string | number | boolean) => {
@@ -308,5 +331,10 @@ export function useGateway(): GatewayContextValue {
     costSnapshot,
     channelHealth,
     agentState,
+    heatmap,
+    tasks,
+    moveTask,
+    memories,
+    agentDesks,
   };
 }

@@ -70,17 +70,17 @@ export function HealthBar({
 
   return (
     <header
-      className="flex h-14 items-center justify-between bg-card px-6"
-      style={{ boxShadow: "0 1px 0 rgba(0, 0, 0, 0.06)" }}
+      className="flex h-14 items-center justify-between bg-card px-3 sm:px-6 border-b border-card-border"
     >
       {/* Left: status indicators */}
-      <div className="flex items-center gap-3">
-        <div className="resource-pill">
+      <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto">
+        <div className="resource-pill shrink-0">
           <span className={`h-2 w-2 rounded-full ${statusDotColor[gatewayStatus]}`} />
-          <span>{formatTokenCount(tokenCount)} tokens</span>
+          <span className="hidden xs:inline">{formatTokenCount(tokenCount)} tokens</span>
+          <span className="xs:hidden">{formatTokenCount(tokenCount)}</span>
         </div>
 
-        <div className="resource-pill">
+        <div className="resource-pill shrink-0 hidden sm:inline-flex">
           <span className="h-2 w-2 rounded-full bg-teal" />
           <span>{connectedAgents}/{agents.length} agents</span>
         </div>
@@ -104,10 +104,10 @@ export function HealthBar({
 
           {modelOpen && (
             <div
-              className="absolute left-0 top-full mt-2 min-w-52 rounded-xl bg-card py-1.5"
+              className="absolute left-0 top-full mt-2 min-w-52 rounded-xl bg-card py-1.5 animate-dropdown border border-card-border"
               style={{
                 zIndex: "var(--z-dropdown)",
-                boxShadow: "0 0 0 1px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08)",
+                boxShadow: "0 8px 24px var(--shadow-medium)",
               }}
             >
               {availableModels.map((model) => (

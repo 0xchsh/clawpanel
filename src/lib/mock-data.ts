@@ -21,6 +21,9 @@ import type {
   CostSnapshot,
   ChannelHealth,
   AgentState,
+  Task,
+  Memory,
+  AgentDesk,
 } from "@/types";
 
 export const mockAgent: Agent = {
@@ -1164,6 +1167,355 @@ export const mockChannelHealth: ChannelHealth[] = [
 ];
 
 export const mockAgentState: AgentState = "running";
+
+// --- Activity Heatmap ---
+
+export interface MockHeatmapCell {
+  day: string;
+  hour: number;
+  messages: number;
+  tokens: number;
+}
+
+// Simple seeded PRNG (mulberry32) — deterministic across server/client
+function seededRandom(seed: number): () => number {
+  let s = seed | 0;
+  return () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function buildMockHeatmap(): {
+  cells: MockHeatmapCell[];
+  maxMessages: number;
+  days: string[];
+  currentStreak: number;
+  longestStreak: number;
+} {
+  const rand = seededRandom(42);
+  const days: string[] = [];
+  const cells: MockHeatmapCell[] = [];
+  let maxMessages = 0;
+
+  // Use a fixed reference date so the grid is stable across renders
+  const ref = new Date("2025-02-18T00:00:00");
+
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(ref);
+    d.setDate(d.getDate() - i);
+    const day = d.toISOString().split("T")[0];
+    days.push(day);
+
+    for (let hour = 0; hour < 24; hour++) {
+      const isActiveHour = hour >= 8 && hour <= 23;
+      const isWeekday = d.getDay() >= 1 && d.getDay() <= 5;
+      const baseProb = isActiveHour ? (isWeekday ? 0.6 : 0.3) : 0.05;
+      const messages = rand() < baseProb
+        ? Math.floor(rand() * (isActiveHour ? 15 : 3)) + 1
+        : 0;
+      const tokens = messages * (Math.floor(rand() * 2000) + 500);
+
+      if (messages > maxMessages) maxMessages = messages;
+      cells.push({ day, hour, messages, tokens });
+    }
+  }
+
+  return { cells, maxMessages, days, currentStreak: 12, longestStreak: 23 };
+}
+
+export const mockHeatmap = buildMockHeatmap();
+
+// --- Activity Feed ---
+
+// --- Tasks ---
+
+export const mockTasks: Task[] = [
+  {
+    id: "task-1",
+    title: "Implement webhook retry logic",
+    description: "Add exponential backoff for failed webhook deliveries. Max 3 retries with 1s, 5s, 25s delays.",
+    status: "in_progress",
+    priority: "high",
+    assignee: { id: "agent-1", name: "Atlas", type: "agent", emoji: "🦊" },
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 30),
+    dueDate: new Date(Date.now() + 1000 * 60 * 60 * 24),
+    tags: ["backend", "reliability"],
+  },
+  {
+    id: "task-2",
+    title: "Design settings page mockups",
+    status: "done",
+    priority: "medium",
+    assignee: { id: "human-1", name: "Carlos", type: "human", emoji: "👤" },
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 72),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 4),
+    tags: ["design", "ui"],
+  },
+  {
+    id: "task-3",
+    title: "Add rate limiting to API endpoints",
+    description: "Implement per-session rate limiting using a sliding window algorithm.",
+    status: "backlog",
+    priority: "urgent",
+    assignee: { id: "agent-1", name: "Atlas", type: "agent", emoji: "🦊" },
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24),
+    tags: ["backend", "security"],
+  },
+  {
+    id: "task-4",
+    title: "Write unit tests for cron scheduler",
+    status: "review",
+    priority: "medium",
+    assignee: { id: "agent-2", name: "Scout", type: "agent", emoji: "🐦" },
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 36),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 2),
+    tags: ["testing"],
+  },
+  {
+    id: "task-5",
+    title: "Update knowledge base embeddings",
+    description: "Re-index all documents after schema migration.",
+    status: "in_progress",
+    priority: "low",
+    assignee: { id: "agent-3", name: "Forge", type: "agent", emoji: "🔨" },
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 12),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 45),
+    tags: ["data", "embeddings"],
+  },
+  {
+    id: "task-6",
+    title: "Fix Discord message threading",
+    status: "backlog",
+    priority: "high",
+    assignee: { id: "human-1", name: "Carlos", type: "human", emoji: "👤" },
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 8),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 8),
+    tags: ["channels", "bug"],
+  },
+  {
+    id: "task-7",
+    title: "Audit tool permission profiles",
+    status: "review",
+    priority: "high",
+    assignee: { id: "agent-1", name: "Atlas", type: "agent", emoji: "🦊" },
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 60),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 1),
+    tags: ["security", "audit"],
+  },
+  {
+    id: "task-8",
+    title: "Add Mattermost channel adapter",
+    status: "backlog",
+    priority: "low",
+    assignee: { id: "agent-4", name: "Whisper", type: "agent", emoji: "🌙" },
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 96),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 96),
+    tags: ["channels", "integration"],
+  },
+  {
+    id: "task-9",
+    title: "Optimize token counting pipeline",
+    description: "Current implementation double-counts cache tokens. Reduce overhead by 40%.",
+    status: "in_progress",
+    priority: "medium",
+    assignee: { id: "agent-1", name: "Atlas", type: "agent", emoji: "🦊" },
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 18),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 15),
+    tags: ["performance", "tokens"],
+  },
+  {
+    id: "task-10",
+    title: "Document API authentication flow",
+    status: "done",
+    priority: "low",
+    assignee: { id: "human-1", name: "Carlos", type: "human", emoji: "👤" },
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 120),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 48),
+    tags: ["docs"],
+  },
+];
+
+// --- Memories ---
+
+export const mockMemories: Memory[] = [
+  {
+    id: "mem-1",
+    title: "User prefers concise responses",
+    content: "Based on multiple conversations, the user consistently asks for shorter, more direct answers. They prefer bullet points over paragraphs and dislike excessive caveats or hedging. When presenting options, limit to top 3 rather than exhaustive lists.\n\nExamples:\n- \"Just give me the answer\" (sess-main, Feb 12)\n- \"Too long, summarize in 3 bullets\" (sess-support, Feb 14)\n- Positive reaction to terse code reviews",
+    summary: "User wants short, direct answers with bullet points — no hedging.",
+    source: "observation",
+    agentId: "agent-1",
+    agentName: "Atlas",
+    agentEmoji: "🦊",
+    tags: ["preference", "communication"],
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 72),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 12),
+    tokenCount: 245,
+  },
+  {
+    id: "mem-2",
+    title: "Project uses Next.js 16 with App Router",
+    content: "The ClawPanel project is built with:\n- Next.js 16.1.6 (App Router)\n- React 19.2.3\n- Tailwind CSS v4\n- TypeScript 5.x\n- lucide-react for icons\n\nKey patterns:\n- All pages use \"use client\" directive\n- State managed through React Context (GatewayContext)\n- Mock data in src/lib/mock-data.ts\n- Component structure: src/components/<feature>/<component>.tsx",
+    summary: "Next.js 16 + React 19 + Tailwind v4, App Router, Context-based state.",
+    source: "research",
+    agentId: "agent-1",
+    agentName: "Atlas",
+    agentEmoji: "🦊",
+    tags: ["tech-stack", "architecture"],
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 96),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24),
+    tokenCount: 312,
+  },
+  {
+    id: "mem-3",
+    title: "Competitor analysis: Rivet vs OpenClaw",
+    content: "Rivet (by Ironclad) is the closest competitor to OpenClaw:\n\n**Rivet strengths:**\n- Visual node-based editor for AI workflows\n- Strong TypeScript SDK\n- Active open-source community (4.2k stars)\n\n**OpenClaw advantages:**\n- Multi-channel messaging (WhatsApp, Telegram, Discord, etc.)\n- Built-in cron scheduler\n- Node mesh for cross-device orchestration\n- Real-time dashboard (ClawPanel)\n\n**Key differentiator:** OpenClaw is the only platform with native multi-device orchestration and channel routing.",
+    summary: "Rivet has visual editor; OpenClaw wins on multi-channel + device mesh.",
+    source: "research",
+    agentId: "agent-2",
+    agentName: "Scout",
+    agentEmoji: "🐦",
+    tags: ["competitive", "strategy"],
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 48),
+    tokenCount: 489,
+  },
+  {
+    id: "mem-4",
+    title: "Webhook retry strategy decided",
+    content: "After discussing with the user, we settled on exponential backoff for webhook retries:\n\n1. First retry: 1 second delay\n2. Second retry: 5 seconds delay\n3. Third retry: 25 seconds delay\n4. After 3 failures: mark as dead letter, notify via system channel\n\nThe user explicitly rejected circuit-breaker pattern as too complex for v0.8. Will revisit in v1.0.",
+    summary: "Exponential backoff (1s, 5s, 25s), 3 max retries, then dead letter.",
+    source: "conversation",
+    agentId: "agent-1",
+    agentName: "Atlas",
+    agentEmoji: "🦊",
+    tags: ["architecture", "webhooks", "decision"],
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 36),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 36),
+    tokenCount: 178,
+  },
+  {
+    id: "mem-5",
+    title: "Token costs are trending up",
+    content: "Observed a 23% increase in daily token spend over the past week. Primary driver is the support-chat session which uses high thinking level.\n\nRecommendation: Switch support-chat to medium thinking level. Estimated savings: $0.40/day (~$12/month).\n\nThe user acknowledged but hasn't acted yet. Will remind again if spend exceeds $8/day.",
+    summary: "Token spend up 23% — support-chat's high thinking is the main driver.",
+    source: "reflection",
+    agentId: "agent-1",
+    agentName: "Atlas",
+    agentEmoji: "🦊",
+    tags: ["cost", "optimization"],
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 18),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 18),
+    tokenCount: 156,
+  },
+  {
+    id: "mem-6",
+    title: "Deploy process for ClawPanel",
+    content: "Steps to deploy ClawPanel:\n1. Run `npm run build` to create production build\n2. Run `npm run start` to serve on localhost:3000\n3. For custom port: `PORT=3002 npm run start`\n4. For Tailscale: bind to 0.0.0.0 and use Tailscale hostname\n\nNote: The user runs dev on port 3002 locally to avoid conflicts with other projects.",
+    summary: "Build with npm, serve on 3002 locally, Tailscale for remote access.",
+    source: "user_note",
+    agentId: "agent-1",
+    agentName: "Atlas",
+    agentEmoji: "🦊",
+    tags: ["deploy", "process"],
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 120),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24),
+    tokenCount: 134,
+  },
+  {
+    id: "mem-7",
+    title: "Slack rate limit workaround",
+    content: "Slack's API has aggressive rate limits (1 msg/sec for webhooks). When we hit 429 errors:\n\n1. Queue the message in an in-memory buffer\n2. Wait for Retry-After header value\n3. Drain queue with 1.1s spacing\n4. Log all rate limit events for monitoring\n\nThis was implemented in gateway v0.8.1. The webhook retry task (task-1) builds on top of this.",
+    summary: "Queue + Retry-After + 1.1s spacing handles Slack 429s. In v0.8.1.",
+    source: "observation",
+    agentId: "agent-1",
+    agentName: "Atlas",
+    agentEmoji: "🦊",
+    tags: ["slack", "rate-limit", "channels"],
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 60),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 60),
+    tokenCount: 203,
+  },
+  {
+    id: "mem-8",
+    title: "Security audit findings",
+    content: "Last security review (Feb 10) found:\n\n**Critical:** None\n\n**Warnings:**\n- Gateway token hasn't been rotated in 30 days\n- WebChat widget exposed without auth gate\n\n**Info:**\n- 2 nodes running outdated client (0.7.x)\n- exec tool disabled by default (good)\n\nAction items:\n- [ ] Rotate gateway token (assigned to Carlos)\n- [ ] Add auth gate to WebChat (backlog)\n- [ ] Update node clients (reminder sent)",
+    summary: "No critical issues. Token rotation overdue, WebChat needs auth gate.",
+    source: "reflection",
+    agentId: "agent-1",
+    agentName: "Atlas",
+    agentEmoji: "🦊",
+    tags: ["security", "audit"],
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 192),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24),
+    tokenCount: 287,
+  },
+];
+
+// --- Agent Desks (Office) ---
+
+export const mockAgentDesks: AgentDesk[] = [
+  {
+    id: "desk-1",
+    agentId: "agent-1",
+    agentName: "Atlas",
+    agentEmoji: "🦊",
+    status: "working",
+    currentTask: "Implementing webhook retry logic",
+    model: "claude-sonnet-4-5",
+    position: { row: 0, col: 0 },
+    deskStyle: "modern",
+    itemsOnDesk: ["☕", "🖥️", "📓", "🪴"],
+    sessionCount: 3,
+    uptimeMinutes: 247,
+  },
+  {
+    id: "desk-2",
+    agentId: "agent-2",
+    agentName: "Scout",
+    agentEmoji: "🐦",
+    status: "idle",
+    model: "claude-haiku-4-5",
+    position: { row: 0, col: 1 },
+    deskStyle: "minimal",
+    itemsOnDesk: ["🖥️", "🎧"],
+    sessionCount: 1,
+    uptimeMinutes: 62,
+  },
+  {
+    id: "desk-3",
+    agentId: "agent-3",
+    agentName: "Forge",
+    agentEmoji: "🔨",
+    status: "thinking",
+    currentTask: "Optimizing embedding pipeline",
+    model: "claude-opus-4-6",
+    position: { row: 1, col: 0 },
+    deskStyle: "workshop",
+    itemsOnDesk: ["☕", "🖥️", "🔧", "📓", "⚡"],
+    sessionCount: 2,
+    uptimeMinutes: 184,
+  },
+  {
+    id: "desk-4",
+    agentId: "agent-4",
+    agentName: "Whisper",
+    agentEmoji: "🌙",
+    status: "working",
+    currentTask: "Drafting Mattermost adapter spec",
+    model: "claude-sonnet-4-5",
+    position: { row: 1, col: 1 },
+    deskStyle: "cozy",
+    itemsOnDesk: ["🖥️", "🪴", "🧋"],
+    sessionCount: 1,
+    uptimeMinutes: 95,
+  },
+];
 
 // --- Activity Feed ---
 

@@ -1,14 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useGatewayContext } from "@/contexts/gateway-context";
 import { PageHeader } from "@/components/page-header";
 import { formatRelativeTime, formatTokenCount } from "@/lib/format";
 import type { SessionKind } from "@/types";
 
 const kindBadgeColor: Record<SessionKind, string> = {
-  chat: "bg-foreground/5 text-foreground",
-  cron: "bg-foreground/5 text-foreground",
+  chat: "bg-accent/10 text-accent",
+  cron: "bg-accent-yellow/10 text-accent-yellow",
   api: "bg-accent-green/10 text-accent-green",
   system: "bg-foreground/5 text-muted",
 };
@@ -74,11 +75,13 @@ export default function SessionsPage() {
             {sorted.map((session) => (
               <tr
                 key={session.id}
-                className="transition-colors duration-150 hover:bg-card-hover/30"
+                className="transition-colors duration-150 hover:bg-card-hover/30 cursor-pointer"
                 style={{ boxShadow: "0 1px 0 rgba(0, 0, 0, 0.03)" }}
               >
                 <td className="px-6 py-3 font-mono text-[13px] text-foreground">
-                  {session.key}
+                  <Link href={`/sessions/${session.key}`} className="hover:underline">
+                    {session.key}
+                  </Link>
                 </td>
                 <td className="px-3 py-3 text-[13px]">{session.label}</td>
                 <td className="px-3 py-3">

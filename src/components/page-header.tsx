@@ -8,7 +8,7 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, description, actions }: PageHeaderProps) {
   return (
-    <div className="flex items-center justify-between px-6 py-4" style={{ boxShadow: "0 1px 0 rgba(0, 0, 0, 0.06)" }}>
+    <div className="flex items-center justify-between px-6 py-4 border-b border-card-border">
       <div>
         <h1 className="text-sm font-semibold text-foreground">
           {title}

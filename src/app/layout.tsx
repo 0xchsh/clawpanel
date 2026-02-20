@@ -1,7 +1,15 @@
 import type { Metadata } from "next";
+import { JetBrains_Mono } from "next/font/google";
 import { Agentation } from "agentation";
 import "./globals.css";
 import { PageShell } from "@/components/page-shell";
+import { ThemeProvider } from "@/components/theme-provider";
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "ClawPanel",
@@ -14,9 +22,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning className={jetbrainsMono.variable}>
       <body className="antialiased">
-        <PageShell>{children}</PageShell>
+        <ThemeProvider>
+          <PageShell>{children}</PageShell>
+        </ThemeProvider>
         {process.env.NODE_ENV === "development" && <Agentation />}
       </body>
     </html>
