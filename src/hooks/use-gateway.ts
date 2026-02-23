@@ -394,7 +394,8 @@ export function useGateway(): GatewayContextValue {
   // ─── Static mock state (unchanged) ──────────────────────────────────────────
   const [connectionStatus, setConnectionStatusState] = useState<ConnectionStatus>("disconnected");
   const [activeAgent, setActiveAgent] = useState<Agent>({ ...mockAgent });
-  const [agents] = useState<Agent[]>(mockAgents);
+  // Derived — just the real connected agent
+  const agents = useMemo<Agent[]>(() => [activeAgent], [activeAgent]);
   const [files] = useState<AgentFile[]>(mockFiles);
   const [skills] = useState<Skill[]>(mockSkills);
   const [messages, setMessages] = useState<ChatMessage[]>(mockMessages);
