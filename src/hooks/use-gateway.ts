@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useGatewayConnection } from "@/hooks/use-gateway-connection";
 import {
   mockAgent,
@@ -413,7 +413,21 @@ export function useGateway(): GatewayContextValue {
   const [logEntries] = useState<LogEntry[]>(mockLogEntries);
   const [tasks, setTasks] = useState(mockTasks);
   const [memories] = useState<Memory[]>(mockMemories);
-  const [agentDesks] = useState(mockAgentDesks);
+  // Derived from real agent state — no mock
+  const agentDesks = useMemo(() => [{
+    id: activeAgent.id ?? "main",
+    agentId: activeAgent.id ?? "main",
+    agentName: activeAgent.name ?? "Algernon",
+    agentEmoji: "🤖",
+    status: (agentState === "running" ? "working" : "idle") as import("@/types").AgentWorkStatus,
+    currentTask: agentState === "running" ? "Working…" : undefined,
+    model: activeModel,
+    position: { row: 0, col: 0 },
+    deskStyle: "default",
+    itemsOnDesk: [],
+    sessionCount: sessions.length,
+    uptimeMinutes: 0,
+  }], [activeAgent, agentState, activeModel, sessions.length]);
 
   // Track whether we've received any real events
   const hadRealEventsRef = useRef(false);
