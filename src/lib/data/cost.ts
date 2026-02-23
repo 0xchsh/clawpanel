@@ -1,6 +1,7 @@
 /**
  * Cost calculation engine.
  * Aggregates token usage from session data and calculates costs.
+ * Uses the embedded cost data from JSONL when available, falls back to pricing lookup.
  */
 
 import type { SessionFileData } from "./sessions";
@@ -59,27 +60,38 @@ export function calculateCostSummary(
   let lifetimeMessages = 0;
 
   for (const session of sessions) {
-    lifetimeMessages += session.messageCount;
+    for (const entry of session.messages) {
+      if (entry.type !== "message" || !entry.message) continue;
 
-    for (const msg of session.messages) {
+      const msg = entry.message;
       if (!msg.usage) continue;
 
-      const input = msg.usage.input_tokens ?? 0;
-      const output = msg.usage.output_tokens ?? 0;
-      const cacheRead = msg.usage.cache_read_input_tokens ?? 0;
-      const cacheWrite = msg.usage.cache_creation_input_tokens ?? 0;
-      const totalTokens = input + output + cacheRead + cacheWrite;
+      lifetimeMessages++;
 
-      const model = msg.model ?? "unknown";
-      const pricing = getPricing(model, configPricing);
-      const cost = pricing
-        ? calculateCost({ input, output, cacheRead, cacheWrite }, pricing)
-        : 0;
+      const u = msg.usage;
+      const input = u.input ?? 0;
+      const output = u.output ?? 0;
+      const cacheRead = u.cacheRead ?? 0;
+      const cacheWrite = u.cacheWrite ?? 0;
+      const totalTokens = u.totalTokens ?? (input + output + cacheRead + cacheWrite);
+
+      // Use embedded cost if available, otherwise calculate from pricing
+      let cost = 0;
+      if (u.cost?.total) {
+        cost = u.cost.total;
+      } else {
+        const model = msg.model ?? "unknown";
+        const pricing = getPricing(model, configPricing);
+        if (pricing) {
+          cost = calculateCost({ input, output, cacheRead, cacheWrite }, pricing);
+        }
+      }
 
       lifetimeCost += cost;
       lifetimeTokens += totalTokens;
 
       // Model split
+      const model = msg.model ?? "unknown";
       const existing = modelMap.get(model) ?? { cost: 0, tokens: 0 };
       modelMap.set(model, {
         cost: existing.cost + cost,
@@ -87,7 +99,7 @@ export function calculateCostSummary(
       });
 
       // Daily aggregation
-      const dateKey = msg.timestamp ? getDateKey(msg.timestamp) : today;
+      const dateKey = entry.timestamp ? getDateKey(entry.timestamp) : today;
       const day = dailyMap.get(dateKey) ?? {
         date: dateKey,
         cost: 0,
@@ -148,13 +160,9 @@ export function calculateCostSummary(
     }))
     .sort((a, b) => b.cost - a.cost);
 
-  // Projected monthly: (today * remaining days) + spent so far this month
+  // Projected monthly
   const now = new Date();
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const dayOfMonth = now.getDate();
-  const daysRemaining = daysInMonth - dayOfMonth;
-
-  // Average daily spend from last 7 days
   const last7Cost = dailyTrend.reduce((s, d) => s + d.cost, 0);
   const avgDaily = last7Cost / 7;
   const projectedMonthly = avgDaily * daysInMonth;

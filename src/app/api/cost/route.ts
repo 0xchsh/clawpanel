@@ -3,7 +3,10 @@ import { readAllSessions } from "@/lib/data/sessions";
 import { calculateCostSummary } from "@/lib/data/cost";
 import { calculateBurnRate } from "@/lib/data/burn-rate";
 import { calculateLifetimeStats } from "@/lib/data/lifetime";
+import { buildHeatmapData } from "@/lib/data/heatmap";
 import { readOpenClawConfig, extractModelPricing } from "@/lib/data/config";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -12,11 +15,9 @@ export async function GET(request: Request) {
     ? parseFloat(searchParams.get("dailyBudget")!)
     : null;
 
-  // Read config for pricing
   const config = await readOpenClawConfig();
   const configPricing = config ? extractModelPricing(config) : undefined;
 
-  // Read all sessions
   const sessions = await readAllSessions(sessionPath);
 
   if (sessions.length === 0) {
@@ -25,27 +26,35 @@ export async function GET(request: Request) {
       cost: null,
       burnRate: null,
       lifetime: null,
+      heatmap: null,
+      sessions: [],
     });
   }
 
-  // Calculate cost summary
   const costSummary = calculateCostSummary(sessions, configPricing);
-
-  // Calculate burn rate
-  const burnRate = calculateBurnRate(
-    sessions,
-    costSummary.todaySpend,
-    dailyBudget,
-    configPricing
-  );
-
-  // Calculate lifetime stats
+  const burnRate = calculateBurnRate(sessions, costSummary.todaySpend, dailyBudget, configPricing);
   const lifetime = calculateLifetimeStats(sessions, costSummary.lifetimeCost);
+  const heatmap = buildHeatmapData(sessions);
+
+  // Session summaries for the dashboard
+  const sessionSummaries = sessions.map((s) => ({
+    filename: s.filename,
+    sessionId: s.sessionId,
+    messageCount: s.messageCount,
+    totalCost: s.totalCost,
+    totalTokens: s.totalInputTokens + s.totalOutputTokens + s.totalCacheReadTokens + s.totalCacheWriteTokens,
+    firstTimestamp: s.firstTimestamp,
+    lastTimestamp: s.lastTimestamp,
+    models: Array.from(s.models),
+    provider: s.provider,
+  }));
 
   return NextResponse.json({
     available: true,
     cost: costSummary,
     burnRate,
     lifetime,
+    heatmap,
+    sessions: sessionSummaries,
   });
 }

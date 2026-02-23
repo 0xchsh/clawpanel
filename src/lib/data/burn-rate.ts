@@ -1,10 +1,6 @@
 /**
  * Burn rate + time-to-limit calculator.
- *
- * Looks at the last 15 minutes of token activity to calculate:
- * - Tokens per minute
- * - Cost per hour
- * - Time to daily/monthly budget limit
+ * Uses the actual JSONL format with embedded cost data.
  */
 
 import type { SessionFileData } from "./sessions";
@@ -35,25 +31,31 @@ export function calculateBurnRate(
   let latestActivity = 0;
 
   for (const session of sessions) {
-    for (const msg of session.messages) {
-      if (!msg.timestamp || !msg.usage) continue;
+    for (const entry of session.messages) {
+      if (entry.type !== "message" || !entry.message?.usage) continue;
+      if (!entry.timestamp) continue;
 
-      const ts = new Date(msg.timestamp).getTime();
+      const ts = new Date(entry.timestamp).getTime();
       if (ts < windowStart) continue;
 
       if (ts > latestActivity) latestActivity = ts;
 
-      const input = msg.usage.input_tokens ?? 0;
-      const output = msg.usage.output_tokens ?? 0;
-      const cacheRead = msg.usage.cache_read_input_tokens ?? 0;
-      const cacheWrite = msg.usage.cache_creation_input_tokens ?? 0;
+      const u = entry.message.usage;
+      const input = u.input ?? 0;
+      const output = u.output ?? 0;
+      const cacheRead = u.cacheRead ?? 0;
+      const cacheWrite = u.cacheWrite ?? 0;
 
-      windowTokens += input + output + cacheRead + cacheWrite;
+      windowTokens += u.totalTokens ?? (input + output + cacheRead + cacheWrite);
 
-      const model = msg.model ?? "unknown";
-      const pricing = getPricing(model, configPricing);
-      if (pricing) {
-        windowCost += calculateCost({ input, output, cacheRead, cacheWrite }, pricing);
+      if (u.cost?.total) {
+        windowCost += u.cost.total;
+      } else {
+        const model = entry.message.model ?? "unknown";
+        const pricing = getPricing(model, configPricing);
+        if (pricing) {
+          windowCost += calculateCost({ input, output, cacheRead, cacheWrite }, pricing);
+        }
       }
     }
   }

@@ -2,7 +2,15 @@
   "name": "clawpanel",
   "version": "0.1.0",
   "description": "A better dashboard for OpenClaw — monitor your agent's cost, health, sessions, and activity.",
-  "keywords": ["openclaw", "dashboard", "monitor", "ai", "agent", "llm", "cost-tracking"],
+  "keywords": [
+    "openclaw",
+    "dashboard",
+    "monitor",
+    "ai",
+    "agent",
+    "llm",
+    "cost-tracking"
+  ],
   "author": "ClawPanel",
   "license": "MIT",
   "bin": {
@@ -30,7 +38,8 @@
     "lucide-react": "^0.563.0",
     "next": "16.1.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "recharts": "^3.7.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

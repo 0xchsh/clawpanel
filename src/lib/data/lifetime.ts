@@ -1,6 +1,5 @@
 /**
  * Lifetime stats aggregator.
- * All-time totals calculated from session JSONL files.
  */
 
 import type { SessionFileData } from "./sessions";
@@ -22,7 +21,6 @@ export function calculateLifetimeStats(
   sessions: SessionFileData[],
   lifetimeCost: number
 ): LifetimeStats {
-  let totalTokens = 0;
   let totalInput = 0;
   let totalOutput = 0;
   let totalCacheRead = 0;
@@ -39,21 +37,15 @@ export function calculateLifetimeStats(
     totalMessages += session.messageCount;
 
     if (session.firstTimestamp) {
-      if (!firstDate || session.firstTimestamp < firstDate) {
-        firstDate = session.firstTimestamp;
-      }
+      if (!firstDate || session.firstTimestamp < firstDate) firstDate = session.firstTimestamp;
     }
     if (session.lastTimestamp) {
-      if (!lastDate || session.lastTimestamp > lastDate) {
-        lastDate = session.lastTimestamp;
-      }
+      if (!lastDate || session.lastTimestamp > lastDate) lastDate = session.lastTimestamp;
     }
   }
 
-  totalTokens = totalInput + totalOutput + totalCacheRead + totalCacheWrite;
-
   return {
-    totalTokens,
+    totalTokens: totalInput + totalOutput + totalCacheRead + totalCacheWrite,
     totalInputTokens: totalInput,
     totalOutputTokens: totalOutput,
     totalCacheReadTokens: totalCacheRead,

@@ -2,44 +2,76 @@
  * Session JSONL file reader.
  * Reads and parses session files from ~/.openclaw/agents/<agentId>/sessions/*.jsonl
  *
- * This runs server-side (API routes) — browsers cannot read the filesystem.
+ * Actual JSONL format (OpenClaw v2026):
+ * - type: "session" — session header with id, timestamp
+ * - type: "model_change" — provider + modelId
+ * - type: "thinking_level_change" — thinkingLevel
+ * - type: "message" — contains message.role, message.content, message.usage
+ *   - usage: { input, output, cacheRead, cacheWrite, totalTokens, cost: { input, output, cacheRead, cacheWrite, total } }
+ *   - model, provider, api, stopReason fields on assistant messages
+ * - type: "custom" — custom events (model-snapshot, etc.)
  */
 
 import { promises as fs } from "fs";
 import path from "path";
 
-export interface SessionMessage {
-  role: "user" | "assistant" | "system" | "tool";
-  content: string;
-  timestamp?: string;
-  model?: string;
-  usage?: {
-    input_tokens?: number;
-    output_tokens?: number;
-    cache_creation_input_tokens?: number;
-    cache_read_input_tokens?: number;
+export interface SessionUsage {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  totalTokens: number;
+  cost?: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    total: number;
   };
-  tool_calls?: Array<{
-    id: string;
-    name: string;
-    input: Record<string, unknown>;
-    output?: string;
-    duration_ms?: number;
-    status?: string;
-  }>;
+}
+
+export interface SessionMessage {
+  type: string;
+  id?: string;
+  parentId?: string | null;
+  timestamp?: string;
+  // For type: "message"
+  message?: {
+    role: "user" | "assistant" | "system" | "tool" | "toolResult";
+    content?: unknown;
+    usage?: SessionUsage;
+    api?: string;
+    provider?: string;
+    model?: string;
+    stopReason?: string;
+    timestamp?: number;
+    toolCallId?: string;
+    toolName?: string;
+  };
+  // For type: "model_change"
+  provider?: string;
+  modelId?: string;
+  // For type: "session"
+  version?: number;
+  cwd?: string;
+  // For type: "thinking_level_change"
+  thinkingLevel?: string;
 }
 
 export interface SessionFileData {
   filename: string;
+  sessionId: string | null;
   messages: SessionMessage[];
   totalInputTokens: number;
   totalOutputTokens: number;
   totalCacheReadTokens: number;
   totalCacheWriteTokens: number;
+  totalCost: number;
   messageCount: number;
   firstTimestamp: string | null;
   lastTimestamp: string | null;
   models: Set<string>;
+  provider: string | null;
 }
 
 export interface SessionDirInfo {
@@ -96,28 +128,54 @@ export async function readSessionFile(filePath: string): Promise<SessionFileData
   let totalOutput = 0;
   let totalCacheRead = 0;
   let totalCacheWrite = 0;
+  let totalCost = 0;
   let firstTimestamp: string | null = null;
   let lastTimestamp: string | null = null;
+  let sessionId: string | null = null;
+  let provider: string | null = null;
   const models = new Set<string>();
 
   for (const line of lines) {
     try {
-      const msg = JSON.parse(line) as SessionMessage;
-      messages.push(msg);
+      const entry = JSON.parse(line) as SessionMessage;
+      messages.push(entry);
 
-      if (msg.usage) {
-        totalInput += msg.usage.input_tokens ?? 0;
-        totalOutput += msg.usage.output_tokens ?? 0;
-        totalCacheRead += msg.usage.cache_read_input_tokens ?? 0;
-        totalCacheWrite += msg.usage.cache_creation_input_tokens ?? 0;
+      // Track timestamps
+      if (entry.timestamp) {
+        if (!firstTimestamp) firstTimestamp = entry.timestamp;
+        lastTimestamp = entry.timestamp;
       }
 
-      if (msg.timestamp) {
-        if (!firstTimestamp) firstTimestamp = msg.timestamp;
-        lastTimestamp = msg.timestamp;
+      // Session header
+      if (entry.type === "session") {
+        sessionId = entry.id ?? null;
       }
 
-      if (msg.model) models.add(msg.model);
+      // Model changes
+      if (entry.type === "model_change") {
+        if (entry.modelId) models.add(entry.modelId);
+        if (entry.provider) provider = entry.provider;
+      }
+
+      // Messages with usage data
+      if (entry.type === "message" && entry.message) {
+        const msg = entry.message;
+
+        // Track model from assistant messages
+        if (msg.model) models.add(msg.model);
+        if (msg.provider) provider = msg.provider;
+
+        if (msg.usage) {
+          const u = msg.usage;
+          totalInput += u.input ?? 0;
+          totalOutput += u.output ?? 0;
+          totalCacheRead += u.cacheRead ?? 0;
+          totalCacheWrite += u.cacheWrite ?? 0;
+          if (u.cost?.total) {
+            totalCost += u.cost.total;
+          }
+        }
+      }
     } catch {
       // Skip malformed lines
     }
@@ -125,15 +183,18 @@ export async function readSessionFile(filePath: string): Promise<SessionFileData
 
   return {
     filename: path.basename(filePath),
+    sessionId,
     messages,
     totalInputTokens: totalInput,
     totalOutputTokens: totalOutput,
     totalCacheReadTokens: totalCacheRead,
     totalCacheWriteTokens: totalCacheWrite,
-    messageCount: messages.length,
+    totalCost,
+    messageCount: messages.filter((m) => m.type === "message").length,
     firstTimestamp,
     lastTimestamp,
     models,
+    provider,
   };
 }
 
