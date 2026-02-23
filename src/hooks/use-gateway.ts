@@ -559,7 +559,21 @@ export function useGateway(): GatewayContextValue {
         const modelId = model.modelId ?? model.id ?? model.name ?? mockAgent.model;
         setActiveModel(modelId);
         setActiveAgent((prev) => ({ ...prev, model: modelId }));
-        setSettings((prev) => ({ ...prev, selectedModel: modelId }));
+        // Populate availableModels dropdown from real gateway data
+        const modelOptions = data.models.map((m) => {
+          const id = m.modelId ?? m.id ?? m.name ?? "";
+          const parts = id.split("/");
+          return {
+            id,
+            name: parts[parts.length - 1] ?? id,
+            provider: parts[0] ?? "unknown",
+          };
+        });
+        setSettings((prev) => ({
+          ...prev,
+          selectedModel: modelId,
+          availableModels: modelOptions.length > 0 ? modelOptions : prev.availableModels,
+        }));
       }
     });
   }, [connectionState, rpc]);
@@ -721,6 +735,16 @@ export function useGateway(): GatewayContextValue {
 
   const updateSettings = useCallback((patch: Partial<Settings>) => {
     setSettings((prev) => ({ ...prev, ...patch }));
+    // Actually switch the model via openclaw CLI when selectedModel changes
+    if (patch.selectedModel) {
+      setActiveModel(patch.selectedModel);
+      setActiveAgent((prev) => ({ ...prev, model: patch.selectedModel! }));
+      fetch("/api/models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modelId: patch.selectedModel }),
+      }).catch(() => {/* best-effort */});
+    }
   }, []);
 
   const deleteSession = useCallback((sessionId: string) => {
