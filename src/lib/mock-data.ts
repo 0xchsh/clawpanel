@@ -27,12 +27,12 @@ import type {
 } from "@/types";
 
 export const mockAgent: Agent = {
-  id: "agent-1",
-  name: "Atlas",
-  emoji: "🦊",
-  model: "claude-sonnet-4-5-20250929",
+  id: "main",
+  name: "Algernon",
+  emoji: "🤖",
+  model: "anthropic/claude-sonnet-4-6",
   status: "connected",
-  autoBuild: true,
+  autoBuild: false,
 };
 
 export const mockAgents: Agent[] = [
