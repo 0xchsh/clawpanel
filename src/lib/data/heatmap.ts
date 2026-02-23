@@ -1,14 +1,13 @@
 /**
  * Activity heatmap data builder.
- * 30-day grid: 24 rows (hours) × 30 columns (days).
- * Each cell holds message count and token volume.
+ * Uses the actual JSONL format.
  */
 
 import type { SessionFileData } from "./sessions";
 
 export interface HeatmapCell {
-  day: string;       // YYYY-MM-DD
-  hour: number;      // 0-23
+  day: string;
+  hour: number;
   messages: number;
   tokens: number;
   cost: number;
@@ -28,28 +27,28 @@ export function buildHeatmapData(sessions: SessionFileData[]): HeatmapData {
   const activeDays = new Set<string>();
 
   for (const session of sessions) {
-    for (const msg of session.messages) {
-      if (!msg.timestamp) continue;
+    for (const entry of session.messages) {
+      if (!entry.timestamp) continue;
+      if (entry.type !== "message") continue;
 
-      const date = new Date(msg.timestamp);
+      const date = new Date(entry.timestamp);
       const day = date.toISOString().split("T")[0];
       const hour = date.getHours();
       const key = `${day}-${hour}`;
 
       activeDays.add(day);
 
-      const tokens =
-        (msg.usage?.input_tokens ?? 0) +
-        (msg.usage?.output_tokens ?? 0) +
-        (msg.usage?.cache_read_input_tokens ?? 0) +
-        (msg.usage?.cache_creation_input_tokens ?? 0);
+      const u = entry.message?.usage;
+      const tokens = u?.totalTokens ?? 0;
+      const cost = u?.cost?.total ?? 0;
 
       const existing = cellMap.get(key);
       if (existing) {
         existing.messages++;
         existing.tokens += tokens;
+        existing.cost += cost;
       } else {
-        cellMap.set(key, { day, hour, messages: 1, tokens, cost: 0 });
+        cellMap.set(key, { day, hour, messages: 1, tokens, cost });
       }
     }
   }
@@ -62,7 +61,6 @@ export function buildHeatmapData(sessions: SessionFileData[]): HeatmapData {
     days.push(d.toISOString().split("T")[0]);
   }
 
-  // Fill all cells for the 30-day grid
   const cells: HeatmapCell[] = [];
   let maxMessages = 0;
   let maxTokens = 0;
@@ -77,17 +75,14 @@ export function buildHeatmapData(sessions: SessionFileData[]): HeatmapData {
     }
   }
 
-  // Calculate streaks
-  const { currentStreak, longestStreak } = calculateStreaks(days, activeDays);
+  const { currentStreak, longestStreak } = calculateStreaks(activeDays);
 
   return { cells, maxMessages, maxTokens, days, currentStreak, longestStreak };
 }
 
 function calculateStreaks(
-  days: string[],
   activeDays: Set<string>
 ): { currentStreak: number; longestStreak: number } {
-  // Check all days from today backwards
   const allDays: string[] = [];
   for (let i = 0; i < 365; i++) {
     const d = new Date();
@@ -109,15 +104,11 @@ function calculateStreaks(
     }
   }
 
-  // If still streaking from today
   if (currentStreak === 0 && streak > 0) currentStreak = streak;
 
   return { currentStreak, longestStreak };
 }
 
-/**
- * Map a value to an intensity level (0-3) for the heatmap color scale.
- */
 export function getIntensityLevel(value: number, max: number): 0 | 1 | 2 | 3 {
   if (value === 0 || max === 0) return 0;
   const ratio = value / max;
