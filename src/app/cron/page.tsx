@@ -2,50 +2,285 @@
 
 import { useState } from "react";
 import { useGatewayContext } from "@/contexts/gateway-context";
-import { PageHeader } from "@/components/page-header";
-import { CronJobList } from "@/components/cron/cron-job-list";
-import { CronJobDetail } from "@/components/cron/cron-job-detail";
-import { Clock } from "lucide-react";
-import { EmptyState } from "@/components/empty-state";
+import {
+  Repeat,
+  Play,
+  CaretDown,
+  CheckCircle,
+  XCircle,
+  CircleNotch,
+  Clock,
+} from "@phosphor-icons/react";
+import { cn } from "@/lib/utils";
+
+function Toggle({
+  enabled,
+  onToggle,
+}: {
+  enabled: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={enabled}
+      onClick={onToggle}
+      className={cn(
+        "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-150",
+        enabled ? "bg-foreground" : "bg-card-border"
+      )}
+    >
+      <span
+        className={cn(
+          "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-150 mt-[2px]",
+          enabled ? "translate-x-5" : "translate-x-0.5"
+        )}
+      />
+    </button>
+  );
+}
+
+function formatDate(date: Date | undefined): string {
+  if (!date) return "—";
+  const d = new Date(date);
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatDuration(ms: number | undefined): string {
+  if (!ms) return "—";
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+const runStatusIcon: Record<string, typeof CheckCircle> = {
+  success: CheckCircle,
+  failure: XCircle,
+  running: CircleNotch,
+};
+
+const runStatusColor: Record<string, string> = {
+  success: "text-accent-green",
+  failure: "text-accent-red",
+  running: "text-accent-yellow",
+};
 
 export default function CronPage() {
   const { cronJobs, toggleCronJob, runCronJob } = useGatewayContext();
-  const [selectedId, setSelectedId] = useState<string | null>(
-    cronJobs[0]?.id ?? null
-  );
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const selectedJob = cronJobs.find((j) => j.id === selectedId);
+  const activeCount = cronJobs.filter((j) => j.enabled).length;
+  const pausedCount = cronJobs.filter((j) => !j.enabled).length;
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      <PageHeader
-        title="Cron Jobs"
-        description={`${cronJobs.filter((j) => j.enabled).length} active, ${cronJobs.filter((j) => !j.enabled).length} paused`}
-      />
-      <div className="flex flex-1 overflow-hidden">
-        <div className="w-[60%] border-r border-card-border overflow-hidden">
-          <CronJobList
-            jobs={cronJobs}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-            onToggle={toggleCronJob}
-          />
-        </div>
-        <div className="w-[40%] overflow-hidden">
-          {selectedJob ? (
-            <CronJobDetail
-              job={selectedJob}
-              onRunNow={() => runCronJob(selectedJob.id)}
-            />
-          ) : (
-            <EmptyState
-              icon={Clock}
-              title="No job selected"
-              description="Select a cron job from the list to view its details and history."
-            />
-          )}
-        </div>
+    <div className="flex flex-col px-4 py-8 lg:px-0 lg:py-0">
+      {/* Page title */}
+      <div className="flex items-center justify-between h-9">
+        <h1 className="text-xl font-semibold text-foreground">Jobs (CRON)</h1>
+        <span className="text-base font-semibold text-muted">
+          {activeCount} active, {pausedCount} paused
+        </span>
       </div>
+
+      <div className="flex flex-col gap-2 mt-8">
+        {cronJobs.length === 0 && (
+          <div className="bg-background rounded-lg p-8 text-center">
+            <Repeat
+              size={32}
+              weight="regular"
+              className="text-muted mx-auto mb-3"
+            />
+            <p className="text-sm font-semibold text-foreground">
+              No cron jobs configured
+            </p>
+            <p className="text-xs text-muted mt-1">
+              Schedule recurring tasks for your agents.
+            </p>
+          </div>
+        )}
+
+        {cronJobs.map((job) => {
+          const expanded = expandedId === job.id;
+          const lastRun = job.runs[0];
+
+          return (
+            <div key={job.id} className="bg-background rounded-lg">
+              {/* Job row */}
+              <div className="flex items-center gap-3 px-4 py-3">
+                <Repeat
+                  size={18}
+                  weight="regular"
+                  className={cn(
+                    "shrink-0",
+                    job.enabled ? "text-foreground" : "text-muted"
+                  )}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "text-sm font-semibold truncate",
+                        job.enabled ? "text-foreground" : "text-muted"
+                      )}
+                    >
+                      {job.name}
+                    </span>
+                    {lastRun && (
+                      <span
+                        className={cn(
+                          "text-[10px] font-semibold shrink-0",
+                          runStatusColor[lastRun.status]
+                        )}
+                      >
+                        {lastRun.status}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <Clock
+                      size={11}
+                      weight="regular"
+                      className="text-muted shrink-0"
+                    />
+                    <span className="text-xs text-muted truncate">
+                      {job.schedule.readable}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Run now */}
+                <button
+                  type="button"
+                  aria-label={`Run ${job.name} now`}
+                  onClick={() => runCronJob(job.id)}
+                  className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-card transition-colors duration-150 cursor-pointer shrink-0 active:scale-[0.97]"
+                >
+                  <Play size={14} weight="fill" />
+                </button>
+
+                <button
+                  type="button"
+                  aria-label={expanded ? "Collapse details" : "Expand details"}
+                  onClick={() => setExpandedId(expanded ? null : job.id)}
+                  className="p-1 rounded-md text-muted hover:text-foreground transition-colors duration-150 cursor-pointer shrink-0"
+                >
+                  <CaretDown
+                    size={14}
+                    weight="bold"
+                    className={cn(
+                      "transition-transform duration-200",
+                      expanded && "rotate-180"
+                    )}
+                    style={{ transitionTimingFunction: "var(--ease-out)" }}
+                  />
+                </button>
+
+                <Toggle
+                  enabled={job.enabled}
+                  onToggle={() => toggleCronJob(job.id)}
+                />
+              </div>
+
+              {/* Expanded detail */}
+              {expanded && (
+                <div className="px-4 pb-4 pt-1 border-t border-card-border/50">
+                  <div className="flex flex-col gap-2 mt-3">
+                    <Row label="Description">
+                      <span className="text-sm text-foreground text-right max-w-[320px]">
+                        {job.description}
+                      </span>
+                    </Row>
+                    <Row label="Schedule">
+                      <span className="font-mono text-xs text-foreground">
+                        {job.schedule.expression}
+                      </span>
+                    </Row>
+                    <Row label="Next Run">
+                      <span className="text-sm text-foreground">
+                        {formatDate(job.nextRun)}
+                      </span>
+                    </Row>
+                    <Row label="Last Run">
+                      <span className="text-sm text-foreground">
+                        {formatDate(job.lastRun)}
+                      </span>
+                    </Row>
+                    {job.deliveryChannel && (
+                      <Row label="Channel">
+                        <span className="text-sm text-foreground">
+                          {job.deliveryChannel}
+                        </span>
+                      </Row>
+                    )}
+
+                    {/* Run history */}
+                    {job.runs.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-xs font-semibold text-muted mb-2">
+                          Recent Runs
+                        </p>
+                        <div className="flex flex-col gap-1">
+                          {job.runs.slice(0, 5).map((run) => {
+                            const StatusIcon =
+                              runStatusIcon[run.status] || CheckCircle;
+                            return (
+                              <div
+                                key={run.id}
+                                className="flex items-center justify-between py-1.5"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <StatusIcon
+                                    size={14}
+                                    weight={
+                                      run.status === "running"
+                                        ? "regular"
+                                        : "fill"
+                                    }
+                                    className={cn(
+                                      "shrink-0",
+                                      runStatusColor[run.status]
+                                    )}
+                                  />
+                                  <span className="text-xs text-muted">
+                                    {formatDate(run.startedAt)}
+                                  </span>
+                                </div>
+                                <span className="text-xs font-mono text-muted">
+                                  {formatDuration(run.durationMs)}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function Row({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-muted">{label}</span>
+      {children}
     </div>
   );
 }
