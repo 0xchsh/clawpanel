@@ -436,6 +436,34 @@ export interface Memory {
   tokenCount: number;
 }
 
+// --- ClawhHub types ---
+
+export interface ClawhubSearchResult {
+  slug: string;
+  displayName: string;
+  summary: string | null;
+  version: string | null;
+  score: number;
+  updatedAt: number;
+}
+
+export interface ClawhubSkillDetail {
+  skill: {
+    slug: string;
+    displayName: string;
+    summary: string | null;
+  } | null;
+  latestVersion: {
+    version: string;
+    changelog: string;
+    createdAt: number;
+  } | null;
+  owner: {
+    handle: string | null;
+    displayName: string | null;
+  } | null;
+}
+
 // --- Office types ---
 
 export type AgentWorkStatus = "idle" | "working" | "thinking" | "away";

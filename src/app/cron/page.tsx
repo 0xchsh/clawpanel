@@ -89,7 +89,7 @@ export default function CronPage() {
 
       <div className="flex flex-col gap-2 mt-8">
         {cronJobs.length === 0 && (
-          <div className="bg-background rounded-lg p-8 text-center">
+          <div className="bg-card border border-card-border rounded-lg p-8 text-center">
             <Repeat
               size={32}
               weight="regular"
@@ -109,49 +109,55 @@ export default function CronPage() {
           const lastRun = job.runs[0];
 
           return (
-            <div key={job.id} className="bg-background rounded-lg">
+            <div key={job.id} className="bg-card border border-card-border rounded-lg">
               {/* Job row */}
               <div className="flex items-center gap-3 px-4 py-3">
-                <Repeat
-                  size={18}
-                  weight="regular"
-                  className={cn(
-                    "shrink-0",
-                    job.enabled ? "text-foreground" : "text-muted"
-                  )}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={cn(
-                        "text-sm font-semibold truncate",
-                        job.enabled ? "text-foreground" : "text-muted"
-                      )}
-                    >
-                      {job.name}
-                    </span>
-                    {lastRun && (
+                <button
+                  type="button"
+                  onClick={() => setExpandedId(expanded ? null : job.id)}
+                  className="flex items-start gap-3 flex-1 min-w-0 cursor-pointer text-left"
+                >
+                  <Repeat
+                    size={18}
+                    weight="regular"
+                    className={cn(
+                      "shrink-0 mt-[3px]",
+                      job.enabled ? "text-foreground" : "text-muted"
+                    )}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
                       <span
                         className={cn(
-                          "text-[10px] font-semibold shrink-0",
-                          runStatusColor[lastRun.status]
+                          "text-base font-semibold truncate",
+                          job.enabled ? "text-foreground" : "text-muted"
                         )}
                       >
-                        {lastRun.status}
+                        {job.name}
                       </span>
-                    )}
+                      {lastRun && (
+                        <span
+                          className={cn(
+                            "text-sm font-semibold shrink-0",
+                            runStatusColor[lastRun.status]
+                          )}
+                        >
+                          {lastRun.status}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <Clock
+                        size={14}
+                        weight="regular"
+                        className="text-muted shrink-0"
+                      />
+                      <span className="text-sm text-muted truncate">
+                        {job.schedule.readable}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <Clock
-                      size={11}
-                      weight="regular"
-                      className="text-muted shrink-0"
-                    />
-                    <span className="text-xs text-muted truncate">
-                      {job.schedule.readable}
-                    </span>
-                  </div>
-                </div>
+                </button>
 
                 {/* Run now */}
                 <button
@@ -191,28 +197,23 @@ export default function CronPage() {
                 <div className="px-4 pb-4 pt-1 border-t border-card-border/50">
                   <div className="flex flex-col gap-2 mt-3">
                     <Row label="Description">
-                      <span className="text-sm text-foreground text-right max-w-[320px]">
+                      <span className="text-base text-foreground text-right max-w-[320px]">
                         {job.description}
                       </span>
                     </Row>
-                    <Row label="Schedule">
-                      <span className="font-mono text-xs text-foreground">
-                        {job.schedule.expression}
-                      </span>
-                    </Row>
                     <Row label="Next Run">
-                      <span className="text-sm text-foreground">
+                      <span className="text-base text-foreground">
                         {formatDate(job.nextRun)}
                       </span>
                     </Row>
                     <Row label="Last Run">
-                      <span className="text-sm text-foreground">
+                      <span className="text-base text-foreground">
                         {formatDate(job.lastRun)}
                       </span>
                     </Row>
                     {job.deliveryChannel && (
                       <Row label="Channel">
-                        <span className="text-sm text-foreground">
+                        <span className="text-base text-foreground">
                           {job.deliveryChannel}
                         </span>
                       </Row>
@@ -221,7 +222,7 @@ export default function CronPage() {
                     {/* Run history */}
                     {job.runs.length > 0 && (
                       <div className="mt-3">
-                        <p className="text-xs font-semibold text-muted mb-2">
+                        <p className="text-sm font-semibold text-muted mb-2">
                           Recent Runs
                         </p>
                         <div className="flex flex-col gap-1">
@@ -235,7 +236,7 @@ export default function CronPage() {
                               >
                                 <div className="flex items-center gap-2">
                                   <StatusIcon
-                                    size={14}
+                                    size={16}
                                     weight={
                                       run.status === "running"
                                         ? "regular"
@@ -246,11 +247,11 @@ export default function CronPage() {
                                       runStatusColor[run.status]
                                     )}
                                   />
-                                  <span className="text-xs text-muted">
+                                  <span className="text-sm text-muted">
                                     {formatDate(run.startedAt)}
                                   </span>
                                 </div>
-                                <span className="text-xs font-mono text-muted">
+                                <span className="text-sm font-mono text-muted">
                                   {formatDuration(run.durationMs)}
                                 </span>
                               </div>
@@ -279,7 +280,7 @@ function Row({
 }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-xs text-muted">{label}</span>
+      <span className="text-sm text-muted">{label}</span>
       {children}
     </div>
   );

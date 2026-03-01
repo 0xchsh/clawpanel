@@ -1162,8 +1162,6 @@ export const mockChannelHealth: ChannelHealth[] = [
   { name: "WhatsApp", provider: "whatsapp", status: "connected" },
   { name: "Telegram", provider: "telegram", status: "connected" },
   { name: "Discord", provider: "discord", status: "connected" },
-  { name: "Slack", provider: "slack", status: "degraded" },
-  { name: "Teams", provider: "teams", status: "connected" },
 ];
 
 export const mockAgentState: AgentState = "running";

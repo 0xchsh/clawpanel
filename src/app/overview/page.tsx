@@ -1,6 +1,9 @@
 "use client";
 
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useGatewayContext } from "@/contexts/gateway-context";
+import type { AgentDesk } from "@/types";
 import {
   Hammer,
   ChatCircle,
@@ -59,21 +62,6 @@ function timeAgoShort(date: Date): string {
   return `${days}d ago`;
 }
 
-function UsageBar({ filled, total }: { filled: number; total: number }) {
-  return (
-    <div className="flex gap-0.5 items-center">
-      {Array.from({ length: total }).map((_, i) => (
-        <div
-          key={i}
-          className={cn(
-            "h-4 w-2 rounded-[3px] flex-1",
-            i < filled ? "bg-accent-yellow" : "bg-card-border"
-          )}
-        />
-      ))}
-    </div>
-  );
-}
 
 function DonutChart({
   segments,
@@ -120,6 +108,210 @@ function DonutChart({
   );
 }
 
+function useLatestVersion(currentVersion: string) {
+  const [latest, setLatest] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/version")
+      .then((r) => r.json())
+      .then((data: { latest: string | null }) => {
+        if (data.latest && data.latest !== currentVersion) {
+          setLatest(data.latest);
+        }
+      })
+      .catch(() => {});
+  }, [currentVersion]);
+
+  return latest;
+}
+
+/* ── Fishbowl ── */
+
+interface Walker {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  targetVx: number;
+  targetVy: number;
+  facingRight: boolean;
+}
+
+const STATUS_SPEED: Record<string, number> = {
+  working: 0.55,
+  thinking: 0.35,
+  idle: 0.18,
+  away: 0.07,
+};
+
+function Fishbowl({ desks, onAgentClick }: { desks: AgentDesk[]; onAgentClick?: (agentId: string) => void }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const walkersRef = useRef<Walker[]>([]);
+  const frameRef = useRef(0);
+  const [positions, setPositions] = useState<Walker[]>([]);
+
+  // Seed walkers when desks change
+  const seedWalkers = useCallback(
+    (w: number, h: number) => {
+      const pad = 32;
+      walkersRef.current = desks.map((desk, i) => {
+        const existing = walkersRef.current[i];
+        if (existing) return existing;
+        const speed = STATUS_SPEED[desk.status] ?? 0.18;
+        const angle = Math.random() * Math.PI * 2;
+        return {
+          x: pad + Math.random() * (w - pad * 2),
+          y: pad + Math.random() * (h - pad * 2),
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          targetVx: Math.cos(angle) * speed,
+          targetVy: Math.sin(angle) * speed,
+          facingRight: Math.cos(angle) > 0,
+        };
+      });
+    },
+    [desks],
+  );
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    seedWalkers(rect.width, rect.height);
+
+    let tick = 0;
+
+    function step() {
+      const r = el!.getBoundingClientRect();
+      const w = r.width;
+      const h = r.height;
+      const pad = 32;
+      tick++;
+
+      for (let i = 0; i < walkersRef.current.length; i++) {
+        const walker = walkersRef.current[i];
+        const speed = STATUS_SPEED[desks[i]?.status ?? "idle"] ?? 0.18;
+
+        // Every ~120 frames (~2s at 60fps) pick a new random target direction
+        if (tick % 120 === i * 17) {
+          const angle = Math.random() * Math.PI * 2;
+          walker.targetVx = Math.cos(angle) * speed;
+          walker.targetVy = Math.sin(angle) * speed;
+        }
+
+        // Ease toward target velocity
+        walker.vx += (walker.targetVx - walker.vx) * 0.02;
+        walker.vy += (walker.targetVy - walker.vy) * 0.02;
+
+        walker.x += walker.vx;
+        walker.y += walker.vy;
+
+        // Bounce off edges
+        if (walker.x < pad) {
+          walker.x = pad;
+          walker.vx = Math.abs(walker.vx) * 0.8;
+          walker.targetVx = Math.abs(walker.targetVx);
+        } else if (walker.x > w - pad) {
+          walker.x = w - pad;
+          walker.vx = -Math.abs(walker.vx) * 0.8;
+          walker.targetVx = -Math.abs(walker.targetVx);
+        }
+        if (walker.y < pad) {
+          walker.y = pad;
+          walker.vy = Math.abs(walker.vy) * 0.8;
+          walker.targetVy = Math.abs(walker.targetVy);
+        } else if (walker.y > h - pad) {
+          walker.y = h - pad;
+          walker.vy = -Math.abs(walker.vy) * 0.8;
+          walker.targetVy = -Math.abs(walker.targetVy);
+        }
+
+        // Update facing direction (only flip when clearly moving)
+        if (Math.abs(walker.vx) > 0.04) {
+          walker.facingRight = walker.vx > 0;
+        }
+      }
+
+      setPositions(walkersRef.current.map((w) => ({ ...w })));
+      frameRef.current = requestAnimationFrame(step);
+    }
+
+    frameRef.current = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frameRef.current);
+  }, [desks, seedWalkers]);
+
+  if (desks.length === 0) return null;
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative bg-card border border-card-border rounded-lg office-floor overflow-hidden"
+      style={{ height: 200 }}
+    >
+      {/* Subtle inner vignette for the fishbowl feel */}
+      <div
+        className="absolute inset-0 rounded-lg pointer-events-none"
+        style={{
+          boxShadow: "inset 0 0 40px var(--shadow-soft), inset 0 0 80px var(--shadow-soft)",
+        }}
+      />
+
+      {positions.map((walker, i) => {
+        const desk = desks[i];
+        if (!desk) return null;
+        const isActive = desk.status === "working" || desk.status === "thinking";
+
+        return (
+          <button
+            type="button"
+            key={desk.id}
+            onClick={() => onAgentClick?.(desk.agentId)}
+            className="absolute flex flex-col items-center select-none cursor-pointer hover:scale-110 transition-transform duration-200"
+            style={{
+              left: walker.x,
+              top: walker.y,
+              transform: "translate(-50%, -50%)",
+              willChange: "left, top",
+            }}
+          >
+            {/* Shadow underneath */}
+            <div
+              className="absolute rounded-full"
+              style={{
+                width: 28,
+                height: 8,
+                bottom: -2,
+                background: "var(--shadow-medium)",
+                filter: "blur(3px)",
+              }}
+            />
+
+            {/* Emoji avatar */}
+            <span
+              className={cn(
+                "text-2xl leading-none transition-transform duration-700",
+                desk.status === "working" && "agent-working",
+                desk.status === "thinking" && "agent-thinking",
+                desk.status === "away" && "agent-away",
+              )}
+              style={{
+                transform: walker.facingRight ? "scaleX(1)" : "scaleX(-1)",
+              }}
+            >
+              {desk.agentEmoji}
+            </span>
+
+            {/* Name tag */}
+            <span className="mt-1 font-mono text-[10px] font-semibold leading-none whitespace-nowrap text-muted uppercase">
+              {desk.agentName}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function OverviewPage() {
   const {
     costSnapshot,
@@ -129,7 +321,11 @@ export default function OverviewPage() {
     activityEvents,
     heatmap,
     settings,
+    agentDesks,
   } = useGatewayContext();
+
+  const router = useRouter();
+  const updateAvailable = useLatestVersion(settings.gatewayVersion);
 
   const todayEvents = activityEvents.filter((e) => {
     const now = new Date();
@@ -141,23 +337,26 @@ export default function OverviewPage() {
     );
   });
 
-  const tokenMax = 1_000_000;
-  const tokenFilled = Math.min(
-    10,
-    Math.round((health.tokenCount / tokenMax) * 10)
-  );
-
   const budgetPercent = costSnapshot.dailyBudget
-    ? Math.round(
-        ((costSnapshot.dailyBudget - costSnapshot.todaySpend) /
-          costSnapshot.dailyBudget) *
-          100
+    ? Math.min(
+        100,
+        Math.max(
+          0,
+          Math.round(
+            ((costSnapshot.dailyBudget - costSnapshot.todaySpend) /
+              costSnapshot.dailyBudget) *
+              100,
+          ),
+        ),
       )
     : null;
 
   const last30 = costSnapshot.dailyTrend.slice(-30);
-  const maxDailyCost = Math.max(...last30.map((d) => d.cost), 1);
-  const totalMessages = heatmap.cells.reduce((sum, c) => sum + c.messages, 0);
+  const maxDailyCost = Math.max(...last30.map((d) => d.cost), 0.01);
+  const last30TotalCost = last30.reduce((sum, d) => sum + d.cost, 0);
+
+  const uptimeHours = Math.floor(settings.uptime / 3600);
+  const uptimeMinutes = Math.floor((settings.uptime % 3600) / 60);
 
   return (
     <div className="flex flex-col px-4 py-8 lg:px-0 lg:py-0">
@@ -169,91 +368,126 @@ export default function OverviewPage() {
           <span className="text-base font-semibold text-muted">
             v{settings.gatewayVersion}
           </span>
-          <button
-            type="button"
-            className="text-base font-semibold text-accent transition-colors duration-150 hover:text-accent-hover"
-          >
-            Update
-          </button>
+          {updateAvailable && (
+            <button
+              type="button"
+              className="text-base font-bold text-accent transition-colors duration-150 hover:text-accent-hover"
+            >
+              Update
+            </button>
+          )}
         </div>
       </div>
 
+      {/* ── Agent Fishbowl ── */}
+      <div className="mt-8">
+        <Fishbowl desks={agentDesks} onAgentClick={(id) => router.push(`/agents?id=${id}`)} />
+      </div>
+
       {/* ── Cards section ── */}
-      <div className="flex flex-col gap-3 mt-8">
-        {/* ── Row 1: Today · Gateway · Tokens ── */}
+      <div className="flex flex-col gap-3 mt-3">
+        {/* ── Row 1: Spend · Sessions · Gateway ── */}
         <div className="flex gap-3">
-          <div className="flex-1 bg-background rounded-lg p-4 h-[120px] flex flex-col justify-between">
-            <p className="text-base font-semibold text-muted">Today</p>
+          <div className="flex-1 bg-card border border-card-border rounded-lg p-4 h-[120px] flex flex-col justify-between">
+            <p className="text-base font-semibold text-muted">Spend</p>
             <div>
               <p className="text-base font-semibold text-foreground">
-                {formatCurrency(costSnapshot.todaySpend)}
+                {formatCurrency(costSnapshot.todaySpend)} today
               </p>
-              <p className="text-base font-semibold text-foreground">
-                {formatTokensShort(costSnapshot.todayTokens)}
+              <p className="text-xs font-semibold text-muted mt-0.5">
+                {formatCurrency(costSnapshot.burnRatePerHour)}/hr
+                {costSnapshot.isIdle && " (idle)"}
               </p>
             </div>
           </div>
 
-          <div className="flex-1 bg-background rounded-lg p-4 h-[120px] flex flex-col justify-between">
+          <div className="flex-1 bg-card border border-card-border rounded-lg p-4 h-[120px] flex flex-col justify-between">
+            <p className="text-base font-semibold text-muted">Sessions</p>
+            <div>
+              <p className="text-base font-semibold text-foreground">
+                {health.sessions.active} active
+              </p>
+              <p className="text-xs font-semibold text-muted mt-0.5">
+                {health.sessions.total} total
+              </p>
+            </div>
+          </div>
+
+          <div className="flex-1 bg-card border border-card-border rounded-lg p-4 h-[120px] flex flex-col justify-between">
             <p className="text-base font-semibold text-muted">Gateway</p>
-            <div className="flex items-center gap-1">
-              <span className={cn("h-2 w-2 rounded-full", connectionStatus === "connected" ? "bg-accent-green" : connectionStatus === "degraded" ? "bg-accent-yellow" : "bg-accent-red")} />
-              <p className="text-base font-semibold text-foreground capitalize">
-                {connectionStatus}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex-1 bg-background rounded-lg p-4 h-[120px] flex flex-col justify-between">
-            <p className="text-base font-semibold text-muted">Tokens</p>
-            <div className="flex flex-col gap-1">
-              <UsageBar filled={tokenFilled} total={10} />
-              <p className="text-base font-semibold text-foreground">
-                {formatTokensCompact(health.tokenCount)}/1M
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={cn(
+                    "h-2 w-2 rounded-full",
+                    connectionStatus === "connected"
+                      ? "bg-accent-green"
+                      : connectionStatus === "degraded"
+                        ? "bg-accent-yellow"
+                        : "bg-accent-red",
+                  )}
+                />
+                <p className="text-base font-semibold text-foreground capitalize">
+                  {connectionStatus}
+                </p>
+              </div>
+              <p className="text-xs font-semibold text-muted mt-0.5">
+                {uptimeHours > 0 ? `${uptimeHours}h ${uptimeMinutes}m up` : `${uptimeMinutes}m up`}
               </p>
             </div>
           </div>
         </div>
 
-        {/* ── Row 2: Burn Rate · 7-Day Cost Trend ── */}
+        {/* ── Row 2: Budget · Tokens ── */}
         <div className="flex gap-3">
-          <div className="w-[181px] shrink-0 bg-background rounded-lg p-4 h-[120px] flex flex-col justify-between">
-            <p className="text-base font-semibold text-muted">Burn Rate</p>
+          <div className="flex-1 bg-card border border-card-border rounded-lg p-4 h-[120px] flex flex-col justify-between">
+            <p className="text-base font-semibold text-muted">Budget</p>
             <div>
-              <p className="text-base font-semibold text-foreground">
-                {formatCurrency(costSnapshot.burnRatePerHour)}/hr
-              </p>
-              {budgetPercent !== null && (
-                <p className="text-base font-semibold text-foreground">
-                  Budget: {budgetPercent}% left
-                </p>
+              {costSnapshot.dailyBudget ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <p className="text-base font-semibold text-foreground">
+                      {budgetPercent}% remaining
+                    </p>
+                  </div>
+                  <p className="text-xs font-semibold text-muted mt-0.5">
+                    {formatCurrency(costSnapshot.dailyBudget)}/day
+                    {costSnapshot.timeToLimitHours != null &&
+                      costSnapshot.timeToLimitHours > 0 &&
+                      ` \u00b7 ${costSnapshot.timeToLimitHours.toFixed(1)}h to limit`}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-base font-semibold text-foreground">
+                    No limit set
+                  </p>
+                  <p className="text-xs font-semibold text-muted mt-0.5">
+                    Projected {formatCurrency(costSnapshot.projectedMonthly)}/mo
+                  </p>
+                </>
               )}
             </div>
           </div>
 
-          <div className="flex-1 bg-background rounded-lg p-4 h-[120px] flex flex-col justify-between">
-            <p className="text-base font-semibold text-muted">
-              7-Day Cost Trend
-            </p>
-            <div className="flex flex-col gap-3">
-              <UsageBar
-                filled={Math.min(
-                  10,
-                  Math.round(
-                    (costSnapshot.dailyTrend.slice(-7).length / 10) * 10
-                  )
-                )}
-                total={10}
-              />
+          <div className="flex-1 bg-card border border-card-border rounded-lg p-4 h-[120px] flex flex-col justify-between">
+            <p className="text-base font-semibold text-muted">Tokens</p>
+            <div>
               <p className="text-base font-semibold text-foreground">
-                Projected: {formatCurrency(costSnapshot.projectedMonthly)}/mo
+                {formatTokensShort(costSnapshot.todayTokens)} today
+              </p>
+              <p className="text-xs font-semibold text-muted mt-0.5">
+                {costSnapshot.burnRateTokensPerMin > 0
+                  ? `${formatTokensCompact(costSnapshot.burnRateTokensPerMin)}/min`
+                  : "0 tok/min"}
+                {costSnapshot.isIdle && " (idle)"}
               </p>
             </div>
           </div>
         </div>
 
         {/* ── Model card ── */}
-        <div className="bg-background rounded-lg p-4 flex items-start justify-between">
+        <div className="bg-card border border-card-border rounded-lg p-4 flex items-start justify-between">
           <div className="flex flex-col justify-between self-stretch min-h-[80px]">
             <p className="text-base font-semibold text-muted">Model</p>
             <div className="flex items-center gap-1">
@@ -298,35 +532,38 @@ export default function OverviewPage() {
         </div>
 
         {/* ── Last 30 Days ── */}
-        <div className="bg-background rounded-lg p-4 h-[120px] flex flex-col justify-between">
+        <div className="bg-card border border-card-border rounded-lg p-4 h-[120px] flex flex-col justify-between">
           <div className="flex items-center gap-2 w-full">
             <p className="text-base font-semibold text-muted whitespace-nowrap">
               Last 30 Days
             </p>
             <div className="flex-1 h-px bg-card-border" />
             <p className="text-base font-semibold text-muted whitespace-nowrap">
-              {totalMessages} messages
+              {formatCurrency(last30TotalCost)} total
             </p>
           </div>
-          <div className="flex gap-1 h-8 items-center">
-            {last30.map((day, i) => (
-              <div
-                key={day.date || i}
-                className={cn(
-                  "flex-1 h-full rounded-[3px]",
-                  day.cost / maxDailyCost > 0.1
-                    ? "bg-accent-yellow"
-                    : "bg-card-border"
-                )}
-              />
-            ))}
+          <div className="flex gap-0.5 h-10 items-end">
+            {last30.map((day, i) => {
+              const ratio = day.cost / maxDailyCost;
+              return (
+                <div
+                  key={day.date || i}
+                  className="flex-1 rounded-[3px] bg-accent-yellow"
+                  style={{
+                    height: `${Math.max(4, ratio * 100)}%`,
+                    opacity: ratio > 0.05 ? 1 : 0.25,
+                  }}
+                />
+              );
+            })}
             {Array.from({ length: Math.max(0, 30 - last30.length) }).map(
               (_, i) => (
                 <div
                   key={`empty-${i}`}
-                  className="flex-1 h-full rounded-[3px] bg-card-border"
+                  className="flex-1 rounded-[3px] bg-card-border"
+                  style={{ height: "4%" }}
                 />
-              )
+              ),
             )}
           </div>
         </div>

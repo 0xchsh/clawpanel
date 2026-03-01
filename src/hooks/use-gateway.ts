@@ -414,21 +414,26 @@ export function useGateway(): GatewayContextValue {
   const [logEntries] = useState<LogEntry[]>(mockLogEntries);
   const [tasks, setTasks] = useState(mockTasks);
   const [memories] = useState<Memory[]>(mockMemories);
-  // Derived from real agent state — no mock
-  const agentDesks = useMemo(() => [{
-    id: activeAgent.id ?? "main",
-    agentId: activeAgent.id ?? "main",
-    agentName: activeAgent.name ?? "Algernon",
-    agentEmoji: "🤖",
-    status: (agentState === "running" ? "working" : "idle") as import("@/types").AgentWorkStatus,
-    currentTask: agentState === "running" ? "Working…" : undefined,
-    model: activeModel,
-    position: { row: 0, col: 0 },
-    deskStyle: "default",
-    itemsOnDesk: [],
-    sessionCount: sessions.length,
-    uptimeMinutes: 0,
-  }], [activeAgent, agentState, activeModel, sessions.length]);
+  // Derived from agentWorkspaces — one desk per workspace agent
+  const agentDesks = useMemo<import("@/types").AgentDesk[]>(() =>
+    agentWorkspaces.map((ws, i) => {
+      const isActive = ws.id === activeAgent.id || i === 0;
+      return {
+        id: ws.id,
+        agentId: ws.id,
+        agentName: ws.name,
+        agentEmoji: ws.emoji,
+        status: (isActive && agentState === "running" ? "working" : "idle") as import("@/types").AgentWorkStatus,
+        currentTask: isActive && agentState === "running" ? "Working…" : undefined,
+        model: isActive ? activeModel : ws.model,
+        position: { row: Math.floor(i / 2), col: i % 2 },
+        deskStyle: "default",
+        itemsOnDesk: [],
+        sessionCount: isActive ? sessions.length : 0,
+        uptimeMinutes: 0,
+      };
+    }),
+  [agentWorkspaces, activeAgent.id, agentState, activeModel, sessions.length]);
 
   // Track whether we've received any real events
   const hadRealEventsRef = useRef(false);

@@ -32,7 +32,7 @@ export function PageShell({ children }: { children: React.ReactNode }) {
         <OfflineIndicator />
 
         {/* Layout: 3-column on desktop, single column on mobile */}
-        <div className="flex flex-1 overflow-y-auto lg:justify-center lg:gap-8 lg:pt-8 lg:pb-8">
+        <div className="flex flex-1 overflow-y-auto lg:justify-center lg:gap-8 lg:pt-8 lg:pb-[72px]">
           <SideNav />
           <main className="flex-1 lg:w-[560px] lg:flex-none">
             <ErrorBoundary>

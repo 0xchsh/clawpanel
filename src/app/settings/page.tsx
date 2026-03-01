@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Link as LinkIcon,
   CurrencyDollar,
@@ -10,9 +11,18 @@ import {
   Moon,
   Desktop,
   Check,
+  ChatsCircle,
+  Trash,
+  Plus,
 } from "@phosphor-icons/react";
+import {
+  SiWhatsapp,
+  SiTelegram,
+  SiDiscord,
+} from "@icons-pack/react-simple-icons";
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { useTheme } from "@/components/theme-provider";
+import { useGatewayContext } from "@/contexts/gateway-context";
 import { cn } from "@/lib/utils";
 
 interface SettingsState {
@@ -69,11 +79,26 @@ function Toggle({
   );
 }
 
+const channelBrandIcon: Record<string, { icon: typeof SiWhatsapp; color: string }> = {
+  whatsapp: { icon: SiWhatsapp, color: "#25D366" },
+  telegram: { icon: SiTelegram, color: "#26A5E4" },
+  discord: { icon: SiDiscord, color: "#5865F2" },
+};
+
+const statusDotColor: Record<string, string> = {
+  connected: "bg-accent-green",
+  degraded: "bg-accent-yellow",
+  disconnected: "bg-accent-red",
+};
+
 export default function SettingsPage() {
   const [settings, setSettings] = useState<SettingsState>(defaultSettings);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const { theme, setTheme } = useTheme();
+  const { channelHealth } = useGatewayContext();
+  const searchParams = useSearchParams();
+  const channelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -126,6 +151,15 @@ export default function SettingsPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [setTheme]);
+
+  // Scroll to channels section if linked from sidebar
+  useEffect(() => {
+    if (searchParams.get("section") === "channels" && channelRef.current) {
+      setTimeout(() => {
+        channelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    }
+  }, [searchParams, loading]);
 
   const update = useCallback(
     (key: keyof SettingsState, value: string | boolean) => {
@@ -330,6 +364,73 @@ export default function SettingsPage() {
           )}
         </SettingsSection>
 
+        {/* Channels */}
+        <div ref={channelRef}>
+          <SettingsSection icon={ChatsCircle} title="Channels">
+            {channelHealth.length === 0 ? (
+              <p className="text-sm text-muted py-2">
+                No channels configured. Add a messaging channel to connect your agent.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {channelHealth.map((ch) => {
+                  const brand = channelBrandIcon[ch.provider];
+                  const BrandIcon = brand?.icon;
+                  return (
+                    <div
+                      key={ch.name}
+                      className="flex items-center gap-3 rounded-lg bg-background px-4 py-3"
+                    >
+                      {BrandIcon ? (
+                        <BrandIcon
+                          size={20}
+                          color={ch.status === "connected" ? brand.color : "var(--muted)"}
+                          className="shrink-0"
+                        />
+                      ) : (
+                        <ChatsCircle size={20} weight="fill" className="text-muted shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground">
+                          {ch.name}
+                        </p>
+                        <p className="text-xs text-muted capitalize">
+                          {ch.provider}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={cn(
+                            "h-2 w-2 rounded-full",
+                            statusDotColor[ch.status],
+                          )}
+                        />
+                        <span className="text-sm text-muted capitalize">
+                          {ch.status}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${ch.name}`}
+                        className="p-1 rounded-md text-muted hover:text-accent-red transition-colors duration-150 cursor-pointer"
+                      >
+                        <Trash size={14} weight="regular" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <button
+              type="button"
+              className="flex items-center gap-2 mt-1 px-3 py-2 rounded-md text-sm font-semibold text-muted hover:text-foreground transition-colors duration-150 cursor-pointer"
+            >
+              <Plus size={14} weight="bold" />
+              Add Channel
+            </button>
+          </SettingsSection>
+        </div>
+
         {/* Notifications */}
         <SettingsSection icon={Bell} title="Notifications">
           <div className="flex items-center justify-between">
@@ -400,8 +501,8 @@ export default function SettingsPage() {
         </SettingsSection>
 
         {/* Save */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex-1 bg-background rounded-lg p-4">
+        <div className="flex flex-col gap-3">
+          <div className="bg-card border border-card-border rounded-lg p-4">
             <p className="text-xs text-muted leading-relaxed">
               ClawPanel is a monitor, not a config editor. To change OpenClaw
               settings, use{" "}
@@ -415,7 +516,7 @@ export default function SettingsPage() {
             type="button"
             onClick={handleSave}
             className={cn(
-              "flex items-center gap-2 rounded-md px-6 py-3 text-sm font-semibold transition-all duration-200 cursor-pointer shrink-0 active:scale-[0.97]",
+              "flex items-center justify-center gap-2 rounded-md px-6 py-3 text-sm font-semibold transition-all duration-200 cursor-pointer active:scale-[0.97] w-full",
               saved
                 ? "bg-accent-green/10 text-accent-green"
                 : "bg-foreground text-card hover:bg-foreground/90"
@@ -446,7 +547,7 @@ function SettingsSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-background rounded-lg overflow-hidden">
+    <div className="bg-card border border-card-border rounded-lg overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-card-border/50">
         <Icon size={16} weight="regular" className="text-muted" />
         <h3 className="text-sm font-semibold text-foreground">{title}</h3>
